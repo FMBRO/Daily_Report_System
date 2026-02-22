@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { PrismaModule } from "./prisma";
+import { AuthModule } from "./auth";
 import { GlobalExceptionFilter } from "./common/filters";
 import { TransformResponseInterceptor } from "./common/interceptors";
 
@@ -14,8 +15,9 @@ import { TransformResponseInterceptor } from "./common/interceptors";
     }),
     // Prismaモジュール（グローバル）
     PrismaModule,
+    // 認証モジュール
+    AuthModule,
     // 機能モジュール（今後追加）
-    // AuthModule,
     // ReportsModule,
     // SalespersonsModule,
     // CustomersModule,
