@@ -1,0 +1,181 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum Role {
+  sales
+  manager
+  admin
+}
+
+enum ReportStatus {
+  draft
+  submitted
+}
+
+enum Priority {
+  high
+  medium
+  low
+}
+
+enum CommentTargetType {
+  problem
+  plan
+}
+
+// ============================================================
+// Master Tables
+// ============================================================
+
+/// 営業マスタ
+model Salesperson {
+  id        Int      @id @default(autoincrement()) @map("salesperson_id")
+  name      String   @db.VarChar(100)
+  email     String   @unique @db.VarChar(255)
+  password  String   @db.VarChar(255)
+  managerId Int?     @map("manager_id")
+  role      Role     @default(sales)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Self-relation: 上長
+  manager      Salesperson?  @relation("ManagerSubordinates", fields: [managerId], references: [id])
+  subordinates Salesperson[] @relation("ManagerSubordinates")
+
+  // Relations
+  dailyReports DailyReport[]
+  comments     Comment[]
+
+  @@map("salespersons")
+}
+
+/// 顧客マスタ
+model Customer {
+  id           Int      @id @default(autoincrement()) @map("customer_id")
+  customerName String   @map("customer_name") @db.VarChar(200)
+  address      String?  @db.VarChar(500)
+  phone        String?  @db.VarChar(20)
+  industry     String?  @db.VarChar(100)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  visits Visit[]
+
+  @@map("customers")
+}
+
+// ============================================================
+// Transaction Tables
+// ============================================================
+
+/// 日報
+model DailyReport {
+  id            Int          @id @default(autoincrement()) @map("report_id")
+  salespersonId Int          @map("salesperson_id")
+  reportDate    DateTime     @map("report_date") @db.Date
+  status        ReportStatus @default(draft)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  salesperson Salesperson @relation(fields: [salespersonId], references: [id])
+  visits      Visit[]
+  problems    Problem[]
+  plans       Plan[]
+
+  // 同一営業・同一日付でユニーク
+  @@unique([salespersonId, reportDate])
+  @@map("daily_reports")
+}
+
+/// 訪問記録
+model Visit {
+  id           Int       @id @default(autoincrement()) @map("visit_id")
+  reportId     Int       @map("report_id")
+  customerId   Int       @map("customer_id")
+  visitTime    DateTime? @map("visit_time") @db.Time()
+  visitPurpose String?   @map("visit_purpose") @db.VarChar(100)
+  visitContent String    @map("visit_content") @db.Text
+  result       String?   @db.VarChar(100)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  dailyReport DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  customer    Customer    @relation(fields: [customerId], references: [id])
+
+  @@map("visits")
+}
+
+/// 課題・相談
+model Problem {
+  id        Int      @id @default(autoincrement()) @map("problem_id")
+  reportId  Int      @map("report_id")
+  content   String   @db.Text
+  priority  Priority @default(medium)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  dailyReport DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+
+  @@map("problems")
+}
+
+/// 計画（明日やること）
+model Plan {
+  id        Int      @id @default(autoincrement()) @map("plan_id")
+  reportId  Int      @map("report_id")
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  dailyReport DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  comments    Comment[]
+
+  @@map("plans")
+}
+
+/// コメント
+/// Note: Problem/Planへのポリモーフィック関連
+/// targetType + targetId で対象を特定（アプリケーション層で制御）
+/// 加えて、problemId/planId で直接リレーションも保持
+model Comment {
+  id          Int               @id @default(autoincrement()) @map("comment_id")
+  targetType  CommentTargetType @map("target_type")
+  targetId    Int               @map("target_id")
+  commenterId Int               @map("commenter_id")
+  content     String            @db.Text
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  // Optional direct relations for type-safe queries
+  problemId Int? @map("problem_id")
+  planId    Int? @map("plan_id")
+
+  // Relations
+  commenter Salesperson @relation(fields: [commenterId], references: [id])
+  problem   Problem?    @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  plan      Plan?       @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([targetType, targetId])
+  @@map("comments")
+}
