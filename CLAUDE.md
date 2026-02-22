@@ -6,16 +6,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 営業日報システム（Daily Sales Report System） - A web application for sales representatives to report daily customer visits and receive feedback from managers.
 
-**Current Status:** Design phase
+**Current Status:** Development phase
 
 ## Commands
 
 ```bash
 # Development
 npm install          # Install dependencies
-npm run dev          # Run development server
+npm run start:dev    # Run development server (with watch)
 npm run build        # Build for production
-npm run start        # Start production server
+npm run start:prod   # Start production server
 
 # Quality
 npm run lint         # Run ESLint
