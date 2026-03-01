@@ -86,4 +86,14 @@ export class AuthService {
       user: userInfo,
     };
   }
+
+  /**
+   * ログアウト処理
+   * クライアント側でトークンを破棄する想定のため、サーバー側では特に処理なし
+   */
+  logout(): { message: string } {
+    return {
+      message: "ログアウトしました",
+    };
+  }
 }

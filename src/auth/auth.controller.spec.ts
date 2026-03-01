@@ -16,8 +16,13 @@ describe("AuthController", () => {
     },
   };
 
+  const mockLogoutResponse = {
+    message: "ログアウトしました",
+  };
+
   const mockAuthService = {
     login: vi.fn().mockResolvedValue(mockLoginResponse),
+    logout: vi.fn().mockReturnValue(mockLogoutResponse),
   };
 
   beforeEach(() => {
@@ -38,6 +43,16 @@ describe("AuthController", () => {
 
       expect(result).toEqual(mockLoginResponse);
       expect(mockAuthService.login).toHaveBeenCalledWith(loginDto);
+    });
+  });
+
+  describe("logout", () => {
+    // AUTH-010: 正常ログアウト
+    it("AUTH-010: 正常なログアウトリクエストを処理できる", () => {
+      const result = authController.logout();
+
+      expect(result).toEqual(mockLogoutResponse);
+      expect(mockAuthService.logout).toHaveBeenCalled();
     });
   });
 });
