@@ -74,10 +74,7 @@ describe("AuthService", () => {
       expect(mockPrismaService.salesperson.findUnique).toHaveBeenCalledWith({
         where: { email: "tanaka@example.com" },
       });
-      expect(bcrypt.compare).toHaveBeenCalledWith(
-        "password123",
-        mockUser.password
-      );
+      expect(bcrypt.compare).toHaveBeenCalledWith("password123", mockUser.password);
       expect(mockJwtService.sign).toHaveBeenCalledWith({
         sub: 1,
         email: "tanaka@example.com",
@@ -160,6 +157,17 @@ describe("AuthService", () => {
           message: "メールアドレスまたはパスワードが正しくありません",
         });
       }
+    });
+  });
+
+  describe("logout", () => {
+    // AUTH-010: 正常ログアウト
+    it("AUTH-010: 正常にログアウトできる", () => {
+      const result = authService.logout();
+
+      expect(result).toEqual({
+        message: "ログアウトしました",
+      });
     });
   });
 });

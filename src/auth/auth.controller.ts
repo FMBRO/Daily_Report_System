@@ -1,5 +1,6 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from "@nestjs/common";
 import {
+  ApiBearerAuth,
   ApiBody,
   ApiOperation,
   ApiResponse,
@@ -9,7 +10,8 @@ import {
 } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI requires runtime class reference
 import { AuthService } from "./auth.service";
-import { LoginDto, LoginResponseDto } from "./dto";
+import { LoginDto, LoginResponseDto, LogoutResponseDto } from "./dto";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
 @ApiTags("認証")
 @Controller("auth")
@@ -39,5 +41,28 @@ export class AuthController {
   })
   async login(@Body() loginDto: LoginDto): Promise<LoginResponseDto> {
     return this.authService.login(loginDto);
+  }
+
+  /**
+   * ログアウト
+   */
+  @Post("logout")
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: "ログアウト",
+    description: "現在のセッションを終了する",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "ログアウト成功",
+    type: LogoutResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: "認証エラー（トークンがない、または無効）",
+  })
+  logout(): LogoutResponseDto {
+    return this.authService.logout();
   }
 }
