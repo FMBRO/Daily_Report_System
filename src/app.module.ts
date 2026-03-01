@@ -3,6 +3,7 @@ import { ConfigModule } from "@nestjs/config";
 import { APP_FILTER, APP_INTERCEPTOR } from "@nestjs/core";
 import { PrismaModule } from "./prisma";
 import { AuthModule } from "./auth";
+import { SalespersonsModule } from "./salespersons";
 import { GlobalExceptionFilter } from "./common/filters";
 import { TransformResponseInterceptor } from "./common/interceptors";
 
@@ -17,9 +18,10 @@ import { TransformResponseInterceptor } from "./common/interceptors";
     PrismaModule,
     // 認証モジュール
     AuthModule,
+    // 営業担当者モジュール
+    SalespersonsModule,
     // 機能モジュール（今後追加）
     // ReportsModule,
-    // SalespersonsModule,
     // CustomersModule,
   ],
   controllers: [],
