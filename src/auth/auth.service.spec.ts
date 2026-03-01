@@ -26,6 +26,7 @@ describe("AuthService", () => {
   const mockPrismaService = {
     salesperson: {
       findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
     },
   };
 
@@ -167,6 +168,98 @@ describe("AuthService", () => {
 
       expect(result).toEqual({
         message: "ログアウトしました",
+      });
+    });
+  });
+
+  describe("getMe", () => {
+    // AUTH-011: 現在のユーザー情報取得（上長あり）
+    it("AUTH-011: 上長がいるユーザーの情報を正しく取得できる", async () => {
+      const mockUserWithManager = {
+        id: 1,
+        name: "田中 太郎",
+        email: "tanaka@example.com",
+        role: "sales" as const,
+        manager: {
+          id: 10,
+          name: "鈴木 部長",
+        },
+      };
+
+      mockPrismaService.salesperson.findUniqueOrThrow.mockResolvedValue(mockUserWithManager);
+
+      const result = await authService.getMe(1);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          salesperson_id: 1,
+          name: "田中 太郎",
+          email: "tanaka@example.com",
+          role: "sales",
+          manager: {
+            salesperson_id: 10,
+            name: "鈴木 部長",
+          },
+        },
+      });
+
+      expect(mockPrismaService.salesperson.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: 1 },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          manager: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+    });
+
+    // AUTH-012: 現在のユーザー情報取得（上長なし）
+    it("AUTH-012: 上長がいないユーザーの情報を正しく取得できる", async () => {
+      const mockUserWithoutManager = {
+        id: 10,
+        name: "鈴木 部長",
+        email: "suzuki@example.com",
+        role: "manager" as const,
+        manager: null,
+      };
+
+      mockPrismaService.salesperson.findUniqueOrThrow.mockResolvedValue(mockUserWithoutManager);
+
+      const result = await authService.getMe(10);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          salesperson_id: 10,
+          name: "鈴木 部長",
+          email: "suzuki@example.com",
+          role: "manager",
+          manager: null,
+        },
+      });
+
+      expect(mockPrismaService.salesperson.findUniqueOrThrow).toHaveBeenCalledWith({
+        where: { id: 10 },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          manager: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
       });
     });
   });

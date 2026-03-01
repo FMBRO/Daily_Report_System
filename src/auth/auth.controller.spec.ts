@@ -20,9 +20,24 @@ describe("AuthController", () => {
     message: "ログアウトしました",
   };
 
+  const mockMeResponse = {
+    success: true,
+    data: {
+      salesperson_id: 1,
+      name: "田中 太郎",
+      email: "tanaka@example.com",
+      role: "sales" as const,
+      manager: {
+        salesperson_id: 10,
+        name: "鈴木 部長",
+      },
+    },
+  };
+
   const mockAuthService = {
     login: vi.fn().mockResolvedValue(mockLoginResponse),
     logout: vi.fn().mockReturnValue(mockLogoutResponse),
+    getMe: vi.fn().mockResolvedValue(mockMeResponse),
   };
 
   beforeEach(() => {
@@ -53,6 +68,23 @@ describe("AuthController", () => {
 
       expect(result).toEqual(mockLogoutResponse);
       expect(mockAuthService.logout).toHaveBeenCalled();
+    });
+  });
+
+  describe("me", () => {
+    // AUTH-011: 現在のユーザー情報取得
+    it("AUTH-011: 認証済みユーザーの情報を取得できる", async () => {
+      const mockUser = {
+        id: 1,
+        email: "tanaka@example.com",
+        name: "田中 太郎",
+        role: "sales" as const,
+      };
+
+      const result = await authController.me(mockUser);
+
+      expect(result).toEqual(mockMeResponse);
+      expect(mockAuthService.getMe).toHaveBeenCalledWith(1);
     });
   });
 });
