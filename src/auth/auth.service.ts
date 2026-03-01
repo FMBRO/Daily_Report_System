@@ -6,7 +6,7 @@ import { ConfigService } from "@nestjs/config";
 import * as bcrypt from "bcrypt";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI requires runtime class reference
 import { PrismaService } from "../prisma";
-import type { LoginDto, LoginResponseDto, UserInfoDto } from "./dto";
+import type { LoginDto, LoginResponseDto, UserInfoDto, MeResponseDto } from "./dto";
 
 /**
  * JWTペイロード
@@ -94,6 +94,43 @@ export class AuthService {
   logout(): { message: string } {
     return {
       message: "ログアウトしました",
+    };
+  }
+
+  /**
+   * 現在のユーザー情報取得
+   */
+  async getMe(userId: number): Promise<MeResponseDto> {
+    const user = await this.prisma.salesperson.findUniqueOrThrow({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        manager: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        salesperson_id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        manager: user.manager
+          ? {
+              salesperson_id: user.manager.id,
+              name: user.manager.name,
+            }
+          : null,
+      },
     };
   }
 }
