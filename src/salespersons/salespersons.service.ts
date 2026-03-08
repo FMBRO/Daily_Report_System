@@ -1,5 +1,11 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+  ForbiddenException,
+} from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
+import * as bcrypt from "bcrypt";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI requires runtime class reference
 import { PrismaService } from "../prisma";
 import type {
@@ -9,6 +15,11 @@ import type {
   SalespersonListItemDto,
   SalespersonDetailDto,
   SalespersonSimpleDto,
+  CreateSalespersonDto,
+  UpdateSalespersonDto,
+  CreateSalespersonResponseDto,
+  UpdateSalespersonResponseDto,
+  DeleteSalespersonResponseDto,
 } from "./dto";
 
 @Injectable()
@@ -178,6 +189,197 @@ export class SalespersonsService {
     return {
       success: true,
       data,
+    };
+  }
+
+  /**
+   * 営業担当者を登録する
+   */
+  async create(dto: CreateSalespersonDto): Promise<CreateSalespersonResponseDto> {
+    const { name, email, password, role, manager_id } = dto;
+
+    // メールアドレス重複チェック
+    const existingUser = await this.prisma.salesperson.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throw new UnprocessableEntityException({
+        code: "DUPLICATE_ENTRY",
+        message: "このメールアドレスは既に登録されています",
+      });
+    }
+
+    // 上長存在チェック
+    if (manager_id !== undefined) {
+      const manager = await this.prisma.salesperson.findUnique({
+        where: { id: manager_id },
+      });
+
+      if (!manager) {
+        throw new UnprocessableEntityException({
+          code: "VALIDATION_ERROR",
+          message: "指定された上長が存在しません",
+        });
+      }
+    }
+
+    // パスワードハッシュ化
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // 営業担当者作成
+    const salesperson = await this.prisma.salesperson.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+        managerId: manager_id,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        salesperson_id: salesperson.id,
+      },
+    };
+  }
+
+  /**
+   * 営業担当者を更新する
+   */
+  async update(id: number, dto: UpdateSalespersonDto): Promise<UpdateSalespersonResponseDto> {
+    // 既存ユーザー確認
+    const existingUser = await this.prisma.salesperson.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException({
+        code: "NOT_FOUND",
+        message: "営業担当者が見つかりません",
+      });
+    }
+
+    // メールアドレス重複チェック（変更時のみ）
+    if (dto.email && dto.email !== existingUser.email) {
+      const emailExists = await this.prisma.salesperson.findUnique({
+        where: { email: dto.email },
+      });
+
+      if (emailExists) {
+        throw new UnprocessableEntityException({
+          code: "DUPLICATE_ENTRY",
+          message: "このメールアドレスは既に登録されています",
+        });
+      }
+    }
+
+    // 上長存在チェック（指定時のみ）
+    if (dto.manager_id !== undefined) {
+      const manager = await this.prisma.salesperson.findUnique({
+        where: { id: dto.manager_id },
+      });
+
+      if (!manager) {
+        throw new UnprocessableEntityException({
+          code: "VALIDATION_ERROR",
+          message: "指定された上長が存在しません",
+        });
+      }
+    }
+
+    // 更新データの構築
+    const updateData: Prisma.SalespersonUpdateInput = {};
+
+    if (dto.name !== undefined) {
+      updateData.name = dto.name;
+    }
+
+    if (dto.email !== undefined) {
+      updateData.email = dto.email;
+    }
+
+    if (dto.role !== undefined) {
+      updateData.role = dto.role;
+    }
+
+    if (dto.manager_id !== undefined) {
+      updateData.manager = { connect: { id: dto.manager_id } };
+    }
+
+    // パスワード変更時はハッシュ化
+    if (dto.password !== undefined) {
+      const saltRounds = 10;
+      updateData.password = await bcrypt.hash(dto.password, saltRounds);
+    }
+
+    // 営業担当者更新
+    await this.prisma.salesperson.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return {
+      success: true,
+      data: {
+        salesperson_id: id,
+      },
+    };
+  }
+
+  /**
+   * 営業担当者を削除する（論理削除）
+   */
+  async remove(id: number, currentUserId: number): Promise<DeleteSalespersonResponseDto> {
+    // 既存ユーザー確認
+    const existingUser = await this.prisma.salesperson.findUnique({
+      where: { id },
+    });
+
+    if (!existingUser) {
+      throw new NotFoundException({
+        code: "NOT_FOUND",
+        message: "営業担当者が見つかりません",
+      });
+    }
+
+    // 自分自身の削除チェック
+    if (id === currentUserId) {
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "自分自身を削除することはできません",
+      });
+    }
+
+    // 部下存在チェック（有効な部下のみ）
+    const subordinateCount = await this.prisma.salesperson.count({
+      where: {
+        managerId: id,
+        isActive: true,
+      },
+    });
+
+    if (subordinateCount > 0) {
+      throw new UnprocessableEntityException({
+        code: "VALIDATION_ERROR",
+        message: "部下が存在するため削除できません",
+      });
+    }
+
+    // 論理削除（isActive = false）
+    await this.prisma.salesperson.update({
+      where: { id },
+      data: { isActive: false },
+    });
+
+    return {
+      success: true,
+      data: {
+        message: "営業担当者を削除しました",
+      },
     };
   }
 }
