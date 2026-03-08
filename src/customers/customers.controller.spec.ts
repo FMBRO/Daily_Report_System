@@ -47,9 +47,46 @@ describe("CustomersController", () => {
     },
   };
 
+  const mockCreateResponse = {
+    success: true,
+    data: {
+      customer_id: 3,
+      customer_name: "新規株式会社",
+      address: "東京都新宿区西新宿1-1-1",
+      phone: "03-9999-8888",
+      industry: "IT",
+      is_active: true,
+      created_at: "2026-02-15T09:00:00.000Z",
+    },
+  };
+
+  const mockUpdateResponse = {
+    success: true,
+    data: {
+      customer_id: 1,
+      customer_name: "株式会社ABC更新",
+      address: "東京都千代田区丸の内2-2-2",
+      phone: "03-1234-5678",
+      industry: "製造業",
+      is_active: true,
+      created_at: "2026-02-15T18:00:00.000Z",
+      updated_at: "2026-02-15T18:00:00.000Z",
+    },
+  };
+
+  const mockDeleteResponse = {
+    success: true,
+    data: {
+      message: "顧客を削除しました",
+    },
+  };
+
   const mockCustomersService = {
     findAll: vi.fn().mockResolvedValue(mockCustomerListResponse),
     findOne: vi.fn().mockResolvedValue(mockCustomerDetailResponse),
+    create: vi.fn().mockResolvedValue(mockCreateResponse),
+    update: vi.fn().mockResolvedValue(mockUpdateResponse),
+    remove: vi.fn().mockResolvedValue(mockDeleteResponse),
   };
 
   beforeEach(() => {
@@ -139,6 +176,81 @@ describe("CustomersController", () => {
 
       await expect(customersController.findOne(999)).rejects.toThrow(error);
       expect(mockCustomersService.findOne).toHaveBeenCalledWith(999);
+    });
+  });
+
+  describe("create", () => {
+    // CUS-001: 顧客登録 - 正常系（全項目）
+    it("CUS-001: 全項目を入力して顧客を登録できる", async () => {
+      const dto = {
+        customer_name: "新規株式会社",
+        address: "東京都新宿区西新宿1-1-1",
+        phone: "03-9999-8888",
+        industry: "IT",
+      };
+
+      const result = await customersController.create(dto);
+
+      expect(result).toEqual(mockCreateResponse);
+      expect(mockCustomersService.create).toHaveBeenCalledWith(dto);
+    });
+
+    // CUS-002: 顧客登録 - 正常系（必須のみ）
+    it("CUS-002: customer_nameのみで顧客を登録できる", async () => {
+      const dto = {
+        customer_name: "新規株式会社",
+      };
+
+      await customersController.create(dto);
+
+      expect(mockCustomersService.create).toHaveBeenCalledWith(dto);
+    });
+  });
+
+  describe("update", () => {
+    // CUS-020: 顧客更新 - 正常系
+    it("CUS-020: 顧客情報を更新できる", async () => {
+      const dto = {
+        customer_name: "株式会社ABC更新",
+        address: "東京都千代田区丸の内2-2-2",
+      };
+
+      const result = await customersController.update(1, dto);
+
+      expect(result).toEqual(mockUpdateResponse);
+      expect(mockCustomersService.update).toHaveBeenCalledWith(1, dto);
+    });
+
+    // 存在しない顧客ID
+    it("存在しないcustomer_idはサービス層でハンドリングされる", async () => {
+      const error = new Error("Not Found");
+      mockCustomersService.update.mockRejectedValue(error);
+
+      const dto = {
+        customer_name: "株式会社ABC更新",
+      };
+
+      await expect(customersController.update(999, dto)).rejects.toThrow(error);
+      expect(mockCustomersService.update).toHaveBeenCalledWith(999, dto);
+    });
+  });
+
+  describe("remove", () => {
+    // CUS-021: 顧客削除（論理削除） - 正常系
+    it("CUS-021: 顧客を論理削除できる", async () => {
+      const result = await customersController.remove(1);
+
+      expect(result).toEqual(mockDeleteResponse);
+      expect(mockCustomersService.remove).toHaveBeenCalledWith(1);
+    });
+
+    // 存在しない顧客ID
+    it("存在しないcustomer_idはサービス層でハンドリングされる", async () => {
+      const error = new Error("Not Found");
+      mockCustomersService.remove.mockRejectedValue(error);
+
+      await expect(customersController.remove(999)).rejects.toThrow(error);
+      expect(mockCustomersService.remove).toHaveBeenCalledWith(999);
     });
   });
 });
