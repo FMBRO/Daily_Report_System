@@ -16,6 +16,8 @@ describe("ReportsController", () => {
   const mockReportsService = {
     findAll: vi.fn(),
     findOne: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
   };
 
   beforeEach(() => {
@@ -281,6 +283,132 @@ describe("ReportsController", () => {
 
       expect(result.data.problems[0].comments).toHaveLength(2);
       expect(result.data.plans[0].comments).toHaveLength(1);
+    });
+  });
+
+  describe("update", () => {
+    // RPT-030: 正常系 - 日報を更新できること（report_dateの変更）
+    it("RPT-030: 日報を正常に更新できる", async () => {
+      const newReportDate = new Date("2026-02-16T00:00:00Z");
+      const mockUpdateResponse = {
+        success: true,
+        data: {
+          report_id: 1,
+          salesperson_id: 1,
+          report_date: "2026-02-16",
+          status: "draft" as const,
+          updated_at: "2026-02-16T10:00:00.000Z",
+        },
+      };
+
+      mockReportsService.update.mockResolvedValue(mockUpdateResponse);
+
+      const result = await reportsController.update(
+        1,
+        { report_date: newReportDate },
+        { user: mockSalesUser }
+      );
+
+      expect(result).toEqual(mockUpdateResponse);
+      expect(mockReportsService.update).toHaveBeenCalledWith(
+        1,
+        { report_date: newReportDate },
+        mockSalesUser
+      );
+    });
+
+    // RPT-031: 異常系 - 提出済み日報は更新できないこと（403 FORBIDDEN）
+    it("RPT-031: 提出済み日報の更新時はエラーがスローされる", async () => {
+      const newReportDate = new Date("2026-02-16T00:00:00Z");
+
+      mockReportsService.update.mockRejectedValue(new Error("提出済みの日報は更新できません"));
+
+      await expect(
+        reportsController.update(1, { report_date: newReportDate }, { user: mockSalesUser })
+      ).rejects.toThrow("提出済みの日報は更新できません");
+    });
+
+    // RPT-032: 異常系 - 他人の日報は更新できないこと（403 FORBIDDEN）
+    it("RPT-032: 他人の日報の更新時はエラーがスローされる", async () => {
+      const newReportDate = new Date("2026-02-16T00:00:00Z");
+
+      mockReportsService.update.mockRejectedValue(
+        new Error("他人の日報を更新する権限がありません")
+      );
+
+      await expect(
+        reportsController.update(1, { report_date: newReportDate }, { user: mockSalesUser })
+      ).rejects.toThrow("他人の日報を更新する権限がありません");
+    });
+
+    // 異常系 - 存在しない日報IDで404エラー
+    it("RPT-030-E1: 存在しない日報IDで404エラーがスローされる", async () => {
+      const newReportDate = new Date("2026-02-16T00:00:00Z");
+
+      mockReportsService.update.mockRejectedValue(new Error("日報が見つかりません"));
+
+      await expect(
+        reportsController.update(999, { report_date: newReportDate }, { user: mockSalesUser })
+      ).rejects.toThrow("日報が見つかりません");
+    });
+
+    // 異常系 - 日付重複時は422エラー
+    it("RPT-030-E2: 日付重複時は422エラーがスローされる", async () => {
+      const newReportDate = new Date("2026-02-16T00:00:00Z");
+
+      mockReportsService.update.mockRejectedValue(new Error("この日付の日報は既に存在します"));
+
+      await expect(
+        reportsController.update(1, { report_date: newReportDate }, { user: mockSalesUser })
+      ).rejects.toThrow("この日付の日報は既に存在します");
+    });
+  });
+
+  describe("remove", () => {
+    // RPT-040: 正常系 - 日報を削除できること
+    it("RPT-040: 日報を正常に削除できる", async () => {
+      const mockDeleteResponse = {
+        success: true,
+        data: {
+          message: "日報を削除しました",
+        },
+      };
+
+      mockReportsService.remove.mockResolvedValue(mockDeleteResponse);
+
+      const result = await reportsController.remove(1, { user: mockSalesUser });
+
+      expect(result).toEqual(mockDeleteResponse);
+      expect(mockReportsService.remove).toHaveBeenCalledWith(1, mockSalesUser);
+    });
+
+    // RPT-041: 異常系 - 提出済み日報は削除できないこと（403 FORBIDDEN）
+    it("RPT-041: 提出済み日報の削除時はエラーがスローされる", async () => {
+      mockReportsService.remove.mockRejectedValue(new Error("提出済みの日報は削除できません"));
+
+      await expect(reportsController.remove(1, { user: mockSalesUser })).rejects.toThrow(
+        "提出済みの日報は削除できません"
+      );
+    });
+
+    // RPT-042: 異常系 - 他人の日報は削除できないこと（403 FORBIDDEN）
+    it("RPT-042: 他人の日報の削除時はエラーがスローされる", async () => {
+      mockReportsService.remove.mockRejectedValue(
+        new Error("他人の日報を削除する権限がありません")
+      );
+
+      await expect(reportsController.remove(1, { user: mockSalesUser })).rejects.toThrow(
+        "他人の日報を削除する権限がありません"
+      );
+    });
+
+    // 異常系 - 存在しない日報IDで404エラー
+    it("RPT-040-E1: 存在しない日報IDで404エラーがスローされる", async () => {
+      mockReportsService.remove.mockRejectedValue(new Error("日報が見つかりません"));
+
+      await expect(reportsController.remove(999, { user: mockSalesUser })).rejects.toThrow(
+        "日報が見つかりません"
+      );
     });
   });
 });

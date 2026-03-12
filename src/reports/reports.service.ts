@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI requires runtime class reference
 import { PrismaService } from "../prisma";
@@ -13,6 +18,9 @@ import type {
   ProblemDetailDto,
   PlanDetailDto,
   CommentDto,
+  UpdateReportDto,
+  UpdateReportResponseDto,
+  DeleteReportResponseDto,
 } from "./dto";
 
 @Injectable()
@@ -336,6 +344,140 @@ export class ReportsService {
     return {
       success: true,
       data,
+    };
+  }
+
+  /**
+   * 日報を更新する
+   */
+  async update(
+    id: number,
+    dto: UpdateReportDto,
+    user: AuthenticatedUser
+  ): Promise<UpdateReportResponseDto> {
+    // 日報取得
+    const report = await this.prisma.dailyReport.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        salespersonId: true,
+        reportDate: true,
+        status: true,
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException({
+        code: "NOT_FOUND",
+        message: "日報が見つかりません",
+      });
+    }
+
+    // 所有者チェック（自分の日報のみ更新可能）
+    if (report.salespersonId !== user.id) {
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "他人の日報を更新する権限がありません",
+      });
+    }
+
+    // 提出済み日報の更新禁止チェック
+    if (report.status === "submitted") {
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "提出済みの日報は更新できません",
+      });
+    }
+
+    // 日付変更時の重複チェック
+    if (dto.report_date && dto.report_date.getTime() !== report.reportDate.getTime()) {
+      const existingReport = await this.prisma.dailyReport.findUnique({
+        where: {
+          salespersonId_reportDate: {
+            salespersonId: user.id,
+            reportDate: dto.report_date,
+          },
+        },
+      });
+
+      if (existingReport) {
+        throw new UnprocessableEntityException({
+          code: "DUPLICATE_ENTRY",
+          message: "この日付の日報は既に存在します",
+          details: {
+            report_date: ["この日付の日報は既に存在します"],
+          },
+        });
+      }
+    }
+
+    // 更新
+    const updatedReport = await this.prisma.dailyReport.update({
+      where: { id },
+      data: {
+        ...(dto.report_date && { reportDate: dto.report_date }),
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        report_id: updatedReport.id,
+        salesperson_id: updatedReport.salespersonId,
+        report_date: updatedReport.reportDate.toISOString().split("T")[0],
+        status: updatedReport.status,
+        updated_at: updatedReport.updatedAt.toISOString(),
+      },
+    };
+  }
+
+  /**
+   * 日報を削除する
+   */
+  async remove(id: number, user: AuthenticatedUser): Promise<DeleteReportResponseDto> {
+    // 日報取得
+    const report = await this.prisma.dailyReport.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        salespersonId: true,
+        status: true,
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException({
+        code: "NOT_FOUND",
+        message: "日報が見つかりません",
+      });
+    }
+
+    // 所有者チェック（自分の日報のみ削除可能）
+    if (report.salespersonId !== user.id) {
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "他人の日報を削除する権限がありません",
+      });
+    }
+
+    // 提出済み日報の削除禁止チェック
+    if (report.status === "submitted") {
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "提出済みの日報は削除できません",
+      });
+    }
+
+    // 削除（カスケード削除で関連データも削除される）
+    await this.prisma.dailyReport.delete({
+      where: { id },
+    });
+
+    return {
+      success: true,
+      data: {
+        message: "日報を削除しました",
+      },
     };
   }
 }

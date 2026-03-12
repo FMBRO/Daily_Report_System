@@ -1,4 +1,8 @@
-import { NotFoundException, ForbiddenException } from "@nestjs/common";
+import {
+  NotFoundException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportsService } from "./reports.service";
 import type { PrismaService } from "../prisma";
@@ -33,6 +37,8 @@ describe("ReportsService", () => {
       count: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
     },
     salesperson: {
       findMany: vi.fn(),
@@ -527,6 +533,175 @@ describe("ReportsService", () => {
 
       expect(result.data.problems[0].comments).toHaveLength(2);
       expect(result.data.plans[0].comments).toHaveLength(1);
+    });
+  });
+
+  describe("update", () => {
+    // RPT-030: 正常系 - 日報を更新できること（report_dateの変更）
+    it("RPT-030: 日報を正常に更新できる", async () => {
+      const mockExistingReport = {
+        id: 1,
+        salespersonId: 1,
+        reportDate: new Date("2026-02-15T00:00:00Z"),
+        status: "draft" as const,
+      };
+
+      const newReportDate = new Date("2026-02-16T00:00:00Z");
+
+      const mockUpdatedReport = {
+        id: 1,
+        salespersonId: 1,
+        reportDate: newReportDate,
+        status: "draft" as const,
+        updatedAt: new Date("2026-02-16T10:00:00Z"),
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValueOnce(mockExistingReport);
+      mockPrismaService.dailyReport.findUnique.mockResolvedValueOnce(null); // 日付重複チェック
+      mockPrismaService.dailyReport.update.mockResolvedValue(mockUpdatedReport);
+
+      const result = await reportsService.update(1, { report_date: newReportDate }, mockSalesUser);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          report_id: 1,
+          salesperson_id: 1,
+          report_date: "2026-02-16",
+          status: "draft",
+          updated_at: "2026-02-16T10:00:00.000Z",
+        },
+      });
+      expect(mockPrismaService.dailyReport.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { reportDate: newReportDate },
+      });
+    });
+
+    // RPT-031: 異常系 - 提出済み日報は更新できないこと（403 FORBIDDEN）
+    it("RPT-031: 提出済み日報は更新できない", async () => {
+      const mockSubmittedReport = {
+        id: 1,
+        salespersonId: 1,
+        reportDate: new Date("2026-02-15T00:00:00Z"),
+        status: "submitted" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockSubmittedReport);
+
+      await expect(
+        reportsService.update(1, { report_date: new Date("2026-02-16T00:00:00Z") }, mockSalesUser)
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    // RPT-032: 異常系 - 他人の日報は更新できないこと（403 FORBIDDEN）
+    it("RPT-032: 他人の日報は更新できない", async () => {
+      const mockOtherReport = {
+        id: 1,
+        salespersonId: 999,
+        reportDate: new Date("2026-02-15T00:00:00Z"),
+        status: "draft" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockOtherReport);
+
+      await expect(
+        reportsService.update(1, { report_date: new Date("2026-02-16T00:00:00Z") }, mockSalesUser)
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    // 異常系 - 存在しない日報IDで404エラー
+    it("RPT-030-E1: 存在しない日報IDで404エラー", async () => {
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(null);
+
+      await expect(
+        reportsService.update(999, { report_date: new Date("2026-02-16T00:00:00Z") }, mockSalesUser)
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    // 異常系 - 日付重複時は422エラー
+    it("RPT-030-E2: 日付重複時は422エラー", async () => {
+      const mockExistingReport = {
+        id: 1,
+        salespersonId: 1,
+        reportDate: new Date("2026-02-15T00:00:00Z"),
+        status: "draft" as const,
+      };
+
+      const newReportDate = new Date("2026-02-16T00:00:00Z");
+
+      const mockDuplicateReport = {
+        id: 2,
+        salespersonId: 1,
+        reportDate: newReportDate,
+        status: "draft" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValueOnce(mockExistingReport);
+      mockPrismaService.dailyReport.findUnique.mockResolvedValueOnce(mockDuplicateReport);
+
+      await expect(
+        reportsService.update(1, { report_date: newReportDate }, mockSalesUser)
+      ).rejects.toThrow(UnprocessableEntityException);
+    });
+  });
+
+  describe("remove", () => {
+    // RPT-040: 正常系 - 日報を削除できること
+    it("RPT-040: 日報を正常に削除できる", async () => {
+      const mockDraftReport = {
+        id: 1,
+        salespersonId: 1,
+        status: "draft" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockDraftReport);
+      mockPrismaService.dailyReport.delete.mockResolvedValue({});
+
+      const result = await reportsService.remove(1, mockSalesUser);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          message: "日報を削除しました",
+        },
+      });
+      expect(mockPrismaService.dailyReport.delete).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
+    });
+
+    // RPT-041: 異常系 - 提出済み日報は削除できないこと（403 FORBIDDEN）
+    it("RPT-041: 提出済み日報は削除できない", async () => {
+      const mockSubmittedReport = {
+        id: 1,
+        salespersonId: 1,
+        status: "submitted" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockSubmittedReport);
+
+      await expect(reportsService.remove(1, mockSalesUser)).rejects.toThrow(ForbiddenException);
+    });
+
+    // RPT-042: 異常系 - 他人の日報は削除できないこと（403 FORBIDDEN）
+    it("RPT-042: 他人の日報は削除できない", async () => {
+      const mockOtherReport = {
+        id: 1,
+        salespersonId: 999,
+        status: "draft" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockOtherReport);
+
+      await expect(reportsService.remove(1, mockSalesUser)).rejects.toThrow(ForbiddenException);
+    });
+
+    // 異常系 - 存在しない日報IDで404エラー
+    it("RPT-040-E1: 存在しない日報IDで404エラー", async () => {
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(null);
+
+      await expect(reportsService.remove(999, mockSalesUser)).rejects.toThrow(NotFoundException);
     });
   });
 });
