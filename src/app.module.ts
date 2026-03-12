@@ -6,6 +6,7 @@ import { AuthModule } from "./auth";
 import { SalespersonsModule } from "./salespersons";
 import { CustomersModule } from "./customers";
 import { ReportsModule } from "./reports";
+import { PlansModule } from "./plans";
 import { GlobalExceptionFilter } from "./common/filters";
 import { TransformResponseInterceptor } from "./common/interceptors";
 
@@ -26,6 +27,8 @@ import { TransformResponseInterceptor } from "./common/interceptors";
     CustomersModule,
     // 日報モジュール
     ReportsModule,
+    // 計画モジュール
+    PlansModule,
   ],
   controllers: [],
   providers: [
