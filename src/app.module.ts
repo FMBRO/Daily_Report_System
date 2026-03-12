@@ -8,6 +8,7 @@ import { CustomersModule } from "./customers";
 import { ReportsModule } from "./reports";
 import { VisitsModule } from "./visits";
 import { ProblemsModule } from "./problems";
+import { PlansModule } from "./plans";
 import { GlobalExceptionFilter } from "./common/filters";
 import { TransformResponseInterceptor } from "./common/interceptors";
 
@@ -32,6 +33,8 @@ import { TransformResponseInterceptor } from "./common/interceptors";
     VisitsModule,
     // 課題・相談モジュール
     ProblemsModule,
+    // 計画モジュール
+    PlansModule,
   ],
   controllers: [],
   providers: [
