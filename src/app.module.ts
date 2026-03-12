@@ -5,6 +5,7 @@ import { PrismaModule } from "./prisma";
 import { AuthModule } from "./auth";
 import { SalespersonsModule } from "./salespersons";
 import { CustomersModule } from "./customers";
+import { ReportsModule } from "./reports";
 import { GlobalExceptionFilter } from "./common/filters";
 import { TransformResponseInterceptor } from "./common/interceptors";
 
@@ -23,8 +24,8 @@ import { TransformResponseInterceptor } from "./common/interceptors";
     SalespersonsModule,
     // 顧客モジュール
     CustomersModule,
-    // 機能モジュール（今後追加）
-    // ReportsModule,
+    // 日報モジュール
+    ReportsModule,
   ],
   controllers: [],
   providers: [
