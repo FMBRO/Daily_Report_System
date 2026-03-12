@@ -3,11 +3,13 @@ import type { Prisma } from "@prisma/client";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI requires runtime class reference
 import { PrismaService } from "../prisma";
 import type {
+  CreateCustomerDto,
   CustomerQueryDto,
   CustomerListResponseDto,
   CustomerDetailResponseDto,
   CustomerListItemDto,
   CustomerDetailDto,
+  UpdateCustomerDto,
 } from "./dto";
 
 @Injectable()
@@ -131,6 +133,149 @@ export class CustomersService {
     return {
       success: true,
       data,
+    };
+  }
+
+  /**
+   * 顧客を登録する
+   */
+  async create(dto: CreateCustomerDto): Promise<CustomerDetailResponseDto> {
+    const customer = await this.prisma.customer.create({
+      data: {
+        customerName: dto.customer_name,
+        address: dto.address ?? null,
+        phone: dto.phone ?? null,
+        industry: dto.industry ?? null,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        customerName: true,
+        address: true,
+        phone: true,
+        industry: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    const data: CustomerDetailDto = {
+      customer_id: customer.id,
+      customer_name: customer.customerName,
+      address: customer.address,
+      phone: customer.phone,
+      industry: customer.industry,
+      is_active: customer.isActive,
+      created_at: customer.createdAt.toISOString(),
+    };
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * 顧客を更新する
+   */
+  async update(id: number, dto: UpdateCustomerDto): Promise<CustomerDetailResponseDto> {
+    // 存在チェック
+    const existing = await this.prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException({
+        code: "NOT_FOUND",
+        message: "顧客が見つかりません",
+      });
+    }
+
+    // 更新データを構築
+    const updateData: {
+      customerName?: string;
+      address?: string | null;
+      phone?: string | null;
+      industry?: string | null;
+      isActive?: boolean;
+    } = {};
+
+    if (dto.customer_name !== undefined) {
+      updateData.customerName = dto.customer_name;
+    }
+    if (dto.address !== undefined) {
+      updateData.address = dto.address;
+    }
+    if (dto.phone !== undefined) {
+      updateData.phone = dto.phone;
+    }
+    if (dto.industry !== undefined) {
+      updateData.industry = dto.industry;
+    }
+    if (dto.is_active !== undefined) {
+      updateData.isActive = dto.is_active;
+    }
+
+    const customer = await this.prisma.customer.update({
+      where: { id },
+      data: updateData,
+      select: {
+        id: true,
+        customerName: true,
+        address: true,
+        phone: true,
+        industry: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    });
+
+    const data: CustomerDetailDto & { updated_at: string } = {
+      customer_id: customer.id,
+      customer_name: customer.customerName,
+      address: customer.address,
+      phone: customer.phone,
+      industry: customer.industry,
+      is_active: customer.isActive,
+      created_at: customer.updatedAt.toISOString(),
+      updated_at: customer.updatedAt.toISOString(),
+    };
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * 顧客を削除する（論理削除）
+   */
+  async remove(id: number): Promise<{ success: boolean; data: { message: string } }> {
+    // 存在チェック
+    const existing = await this.prisma.customer.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      throw new NotFoundException({
+        code: "NOT_FOUND",
+        message: "顧客が見つかりません",
+      });
+    }
+
+    // 論理削除（is_active を false に更新）
+    await this.prisma.customer.update({
+      where: { id },
+      data: {
+        isActive: false,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        message: "顧客を削除しました",
+      },
     };
   }
 }

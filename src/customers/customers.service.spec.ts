@@ -21,6 +21,8 @@ describe("CustomersService", () => {
       findMany: vi.fn(),
       findUnique: vi.fn(),
       count: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
     },
   };
 
@@ -359,6 +361,253 @@ describe("CustomersService", () => {
           createdAt: true,
         },
       });
+    });
+  });
+
+  describe("create", () => {
+    // CUS-001: 顧客登録 - 正常系（全項目）
+    it("CUS-001: 管理者が全項目を入力して顧客を登録できる", async () => {
+      const createDto = {
+        customer_name: "株式会社ABC",
+        address: "東京都千代田区丸の内1-1-1",
+        phone: "03-1234-5678",
+        industry: "製造業",
+      };
+
+      mockPrismaService.customer.create.mockResolvedValue(mockCustomer);
+
+      const result = await customersService.create(createDto);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          customer_id: 1,
+          customer_name: "株式会社ABC",
+          address: "東京都千代田区丸の内1-1-1",
+          phone: "03-1234-5678",
+          industry: "製造業",
+          is_active: true,
+          created_at: "2026-01-01T00:00:00.000Z",
+        },
+      });
+
+      expect(mockPrismaService.customer.create).toHaveBeenCalledWith({
+        data: {
+          customerName: "株式会社ABC",
+          address: "東京都千代田区丸の内1-1-1",
+          phone: "03-1234-5678",
+          industry: "製造業",
+          isActive: true,
+        },
+        select: {
+          id: true,
+          customerName: true,
+          address: true,
+          phone: true,
+          industry: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+    });
+
+    // CUS-002: 顧客登録 - 正常系（必須のみ）
+    it("CUS-002: 管理者がcustomer_nameのみで顧客を登録できる", async () => {
+      const createDto = {
+        customer_name: "株式会社XYZ",
+      };
+
+      const createdCustomer = {
+        id: 2,
+        customerName: "株式会社XYZ",
+        address: null,
+        phone: null,
+        industry: null,
+        isActive: true,
+        createdAt: new Date("2026-01-02T00:00:00.000Z"),
+      };
+
+      mockPrismaService.customer.create.mockResolvedValue(createdCustomer);
+
+      const result = await customersService.create(createDto);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          customer_id: 2,
+          customer_name: "株式会社XYZ",
+          address: null,
+          phone: null,
+          industry: null,
+          is_active: true,
+          created_at: "2026-01-02T00:00:00.000Z",
+        },
+      });
+
+      expect(mockPrismaService.customer.create).toHaveBeenCalledWith({
+        data: {
+          customerName: "株式会社XYZ",
+          address: null,
+          phone: null,
+          industry: null,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          customerName: true,
+          address: true,
+          phone: true,
+          industry: true,
+          isActive: true,
+          createdAt: true,
+        },
+      });
+    });
+  });
+
+  describe("update", () => {
+    // CUS-020: 顧客更新 - 正常系
+    it("CUS-020: 管理者が顧客情報を更新できる", async () => {
+      const updateDto = {
+        customer_name: "株式会社ABC更新",
+        address: "東京都千代田区丸の内2-2-2",
+      };
+
+      const updatedCustomer = {
+        id: 1,
+        customerName: "株式会社ABC更新",
+        address: "東京都千代田区丸の内2-2-2",
+        phone: "03-1234-5678",
+        industry: "製造業",
+        isActive: true,
+        updatedAt: new Date("2026-02-15T18:00:00.000Z"),
+      };
+
+      mockPrismaService.customer.findUnique.mockResolvedValue(mockCustomer);
+      mockPrismaService.customer.update.mockResolvedValue(updatedCustomer);
+
+      const result = await customersService.update(1, updateDto);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          customer_id: 1,
+          customer_name: "株式会社ABC更新",
+          address: "東京都千代田区丸の内2-2-2",
+          phone: "03-1234-5678",
+          industry: "製造業",
+          is_active: true,
+          created_at: "2026-02-15T18:00:00.000Z",
+          updated_at: "2026-02-15T18:00:00.000Z",
+        },
+      });
+
+      expect(mockPrismaService.customer.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
+      expect(mockPrismaService.customer.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          customerName: "株式会社ABC更新",
+          address: "東京都千代田区丸の内2-2-2",
+        },
+        select: {
+          id: true,
+          customerName: true,
+          address: true,
+          phone: true,
+          industry: true,
+          isActive: true,
+          updatedAt: true,
+        },
+      });
+    });
+
+    // 存在しない顧客IDで更新
+    it("存在しないcustomer_idで更新時に404エラーが返る", async () => {
+      mockPrismaService.customer.findUnique.mockResolvedValue(null);
+
+      const updateDto = {
+        customer_name: "株式会社ABC更新",
+      };
+
+      await expect(customersService.update(999, updateDto)).rejects.toThrow(NotFoundException);
+
+      try {
+        await customersService.update(999, updateDto);
+      } catch (error) {
+        expect(error).toBeInstanceOf(NotFoundException);
+        expect((error as NotFoundException).getResponse()).toEqual({
+          code: "NOT_FOUND",
+          message: "顧客が見つかりません",
+        });
+      }
+    });
+  });
+
+  describe("remove", () => {
+    // CUS-021: 顧客削除（論理削除） - 正常系
+    it("CUS-021: 管理者が顧客を論理削除できる", async () => {
+      mockPrismaService.customer.findUnique.mockResolvedValue(mockCustomer);
+      mockPrismaService.customer.update.mockResolvedValue({
+        ...mockCustomer,
+        isActive: false,
+      });
+
+      const result = await customersService.remove(1);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          message: "顧客を削除しました",
+        },
+      });
+
+      expect(mockPrismaService.customer.findUnique).toHaveBeenCalledWith({
+        where: { id: 1 },
+      });
+      expect(mockPrismaService.customer.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: {
+          isActive: false,
+        },
+      });
+    });
+
+    // CUS-022: 訪問実績ありの顧客削除
+    it("CUS-022: 訪問記録がある顧客も論理削除できる", async () => {
+      // 訪問記録がある顧客でも論理削除は成功する
+      mockPrismaService.customer.findUnique.mockResolvedValue(mockCustomer);
+      mockPrismaService.customer.update.mockResolvedValue({
+        ...mockCustomer,
+        isActive: false,
+      });
+
+      const result = await customersService.remove(1);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          message: "顧客を削除しました",
+        },
+      });
+    });
+
+    // 存在しない顧客IDで削除
+    it("存在しないcustomer_idで削除時に404エラーが返る", async () => {
+      mockPrismaService.customer.findUnique.mockResolvedValue(null);
+
+      await expect(customersService.remove(999)).rejects.toThrow(NotFoundException);
+
+      try {
+        await customersService.remove(999);
+      } catch (error) {
+        expect(error).toBeInstanceOf(NotFoundException);
+        expect((error as NotFoundException).getResponse()).toEqual({
+          code: "NOT_FOUND",
+          message: "顧客が見つかりません",
+        });
+      }
     });
   });
 });
