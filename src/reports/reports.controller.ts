@@ -1,4 +1,13 @@
-import { Controller, Get, Param, ParseIntPipe, Query, UseGuards, Request } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Patch,
+  Param,
+  ParseIntPipe,
+  Query,
+  UseGuards,
+  Request,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -8,11 +17,17 @@ import {
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiForbiddenResponse,
+  ApiUnprocessableEntityResponse,
 } from "@nestjs/swagger";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI requires runtime class reference
 import { ReportsService } from "./reports.service";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS validation requires runtime class reference
-import { ReportQueryDto, ReportListResponseDto, ReportDetailResponseDto } from "./dto";
+import {
+  ReportQueryDto,
+  ReportListResponseDto,
+  ReportDetailResponseDto,
+  SubmitReportResponseDto,
+} from "./dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import type { AuthenticatedUser } from "../auth/strategies/jwt.strategy";
 
@@ -84,5 +99,43 @@ export class ReportsController {
     @Request() req: { user: AuthenticatedUser }
   ): Promise<ReportDetailResponseDto> {
     return this.reportsService.findOne(id, req.user);
+  }
+
+  /**
+   * 日報提出
+   */
+  @Patch(":id/submit")
+  @ApiOperation({
+    summary: "日報提出",
+    description: "指定した日報を提出する。自分の日報のみ提出可能。提出後は編集不可となる。",
+  })
+  @ApiParam({
+    name: "id",
+    description: "日報ID",
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "提出成功",
+    type: SubmitReportResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: "認証エラー（トークンがない、または無効）",
+  })
+  @ApiForbiddenResponse({
+    description: "権限エラー（自分以外の日報を提出しようとした）",
+  })
+  @ApiNotFoundResponse({
+    description: "日報が見つからない",
+  })
+  @ApiUnprocessableEntityResponse({
+    description: "既に提出済みの日報",
+  })
+  async submit(
+    @Param("id", ParseIntPipe) id: number,
+    @Request() req: { user: AuthenticatedUser }
+  ): Promise<SubmitReportResponseDto> {
+    return this.reportsService.submit(id, req.user);
   }
 }
