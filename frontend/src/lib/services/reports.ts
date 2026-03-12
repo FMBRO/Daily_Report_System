@@ -4,7 +4,15 @@
 
 import { apiClient } from "@/lib/api-client";
 import type { ApiResponse, PaginationInfo } from "@/types/api";
-import type { DailyReportSummary, ReportListParams } from "@/types/report";
+import type {
+  DailyReport,
+  DailyReportSummary,
+  ReportListParams,
+  ReportStatus,
+  CreateVisitRequest,
+  CreateProblemRequest,
+  CreatePlanRequest,
+} from "@/types/report";
 
 export interface PaginatedReports {
   reports: DailyReportSummary[];
@@ -51,6 +59,44 @@ export async function getReports(
 /**
  * 日報詳細を取得
  */
-export async function getReport(id: string): Promise<ApiResponse<DailyReportSummary>> {
-  return apiClient.get<DailyReportSummary>(`/v1/reports/${id}`);
+export async function getReport(id: string): Promise<ApiResponse<DailyReport>> {
+  return apiClient.get<DailyReport>(`/v1/reports/${id}`);
+}
+
+/**
+ * 日報作成用リクエストデータ
+ */
+export interface CreateReportData {
+  reportDate: string;
+  status: ReportStatus;
+  visits: CreateVisitRequest[];
+  problems: CreateProblemRequest[];
+  plans: CreatePlanRequest[];
+}
+
+/**
+ * 日報更新用リクエストデータ
+ */
+export interface UpdateReportData {
+  status?: ReportStatus;
+  visits?: CreateVisitRequest[];
+  problems?: CreateProblemRequest[];
+  plans?: CreatePlanRequest[];
+}
+
+/**
+ * 日報を作成
+ */
+export async function createReport(data: CreateReportData): Promise<ApiResponse<DailyReport>> {
+  return apiClient.post<DailyReport>("/v1/reports", data);
+}
+
+/**
+ * 日報を更新
+ */
+export async function updateReport(
+  id: string,
+  data: UpdateReportData
+): Promise<ApiResponse<DailyReport>> {
+  return apiClient.patch<DailyReport>(`/v1/reports/${id}`, data);
 }
