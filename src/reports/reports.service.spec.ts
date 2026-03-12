@@ -1,4 +1,8 @@
-import { NotFoundException, ForbiddenException } from "@nestjs/common";
+import {
+  NotFoundException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ReportsService } from "./reports.service";
 import type { PrismaService } from "../prisma";
@@ -33,6 +37,7 @@ describe("ReportsService", () => {
       count: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn(),
     },
     salesperson: {
       findMany: vi.fn(),
@@ -527,6 +532,80 @@ describe("ReportsService", () => {
 
       expect(result.data.problems[0].comments).toHaveLength(2);
       expect(result.data.plans[0].comments).toHaveLength(1);
+    });
+  });
+
+  describe("submit", () => {
+    // RPT-050: 正常系 - 下書き日報を提出できること
+    it("RPT-050: 下書き日報を提出できる", async () => {
+      const mockReport = {
+        id: 1,
+        salespersonId: 1,
+        status: "draft" as const,
+      };
+
+      const mockUpdatedReport = {
+        id: 1,
+        updatedAt: new Date("2026-02-15T18:00:00Z"),
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockReport);
+      mockPrismaService.dailyReport.update.mockResolvedValue(mockUpdatedReport);
+
+      const result = await reportsService.submit(1, mockSalesUser);
+
+      expect(result).toEqual({
+        success: true,
+        data: {
+          report_id: 1,
+          status: "submitted",
+          submitted_at: "2026-02-15T18:00:00.000Z",
+        },
+      });
+
+      expect(mockPrismaService.dailyReport.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { status: "submitted" },
+        select: {
+          id: true,
+          updatedAt: true,
+        },
+      });
+    });
+
+    // RPT-051: 異常系 - 既に提出済みの日報を提出しようとした場合
+    it("RPT-051: 既に提出済みの日報を提出すると422エラー", async () => {
+      const mockReport = {
+        id: 1,
+        salespersonId: 1,
+        status: "submitted" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockReport);
+
+      await expect(reportsService.submit(1, mockSalesUser)).rejects.toThrow(
+        UnprocessableEntityException
+      );
+    });
+
+    // RPT-052: 異常系 - 他人の日報を提出しようとした場合
+    it("RPT-052: 他人の日報を提出しようとすると403エラー", async () => {
+      const mockReport = {
+        id: 1,
+        salespersonId: 999, // 他人のID
+        status: "draft" as const,
+      };
+
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(mockReport);
+
+      await expect(reportsService.submit(1, mockSalesUser)).rejects.toThrow(ForbiddenException);
+    });
+
+    // 異常系 - 存在しない日報を提出しようとした場合
+    it("存在しない日報を提出しようとすると404エラー", async () => {
+      mockPrismaService.dailyReport.findUnique.mockResolvedValue(null);
+
+      await expect(reportsService.submit(999, mockSalesUser)).rejects.toThrow(NotFoundException);
     });
   });
 });

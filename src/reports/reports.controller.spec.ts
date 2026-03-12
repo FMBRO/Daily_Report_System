@@ -16,6 +16,7 @@ describe("ReportsController", () => {
   const mockReportsService = {
     findAll: vi.fn(),
     findOne: vi.fn(),
+    submit: vi.fn(),
   };
 
   beforeEach(() => {
@@ -281,6 +282,27 @@ describe("ReportsController", () => {
 
       expect(result.data.problems[0].comments).toHaveLength(2);
       expect(result.data.plans[0].comments).toHaveLength(1);
+    });
+  });
+
+  describe("submit", () => {
+    // RPT-050: 正常系 - 下書き日報を提出できること
+    it("RPT-050: 下書き日報を提出できる", async () => {
+      const mockSubmitResponse = {
+        success: true,
+        data: {
+          report_id: 1,
+          status: "submitted" as const,
+          submitted_at: "2026-02-15T18:00:00.000Z",
+        },
+      };
+
+      mockReportsService.submit.mockResolvedValue(mockSubmitResponse);
+
+      const result = await reportsController.submit(1, { user: mockSalesUser });
+
+      expect(result).toEqual(mockSubmitResponse);
+      expect(mockReportsService.submit).toHaveBeenCalledWith(1, mockSalesUser);
     });
   });
 });

@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI requires runtime class reference
 import { PrismaService } from "../prisma";
@@ -13,6 +18,7 @@ import type {
   ProblemDetailDto,
   PlanDetailDto,
   CommentDto,
+  SubmitReportResponseDto,
 } from "./dto";
 
 @Injectable()
@@ -336,6 +342,63 @@ export class ReportsService {
     return {
       success: true,
       data,
+    };
+  }
+
+  /**
+   * 日報を提出する
+   */
+  async submit(id: number, user: AuthenticatedUser): Promise<SubmitReportResponseDto> {
+    // 日報取得
+    const report = await this.prisma.dailyReport.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        salespersonId: true,
+        status: true,
+      },
+    });
+
+    if (!report) {
+      throw new NotFoundException({
+        code: "NOT_FOUND",
+        message: "日報が見つかりません",
+      });
+    }
+
+    // 権限チェック（自分の日報のみ提出可能）
+    if (report.salespersonId !== user.id) {
+      throw new ForbiddenException({
+        code: "FORBIDDEN",
+        message: "この日報を提出する権限がありません",
+      });
+    }
+
+    // 既に提出済みの場合はエラー
+    if (report.status === "submitted") {
+      throw new UnprocessableEntityException({
+        code: "ALREADY_SUBMITTED",
+        message: "この日報は既に提出済みです",
+      });
+    }
+
+    // ステータスを更新
+    const updatedReport = await this.prisma.dailyReport.update({
+      where: { id },
+      data: { status: "submitted" },
+      select: {
+        id: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        report_id: updatedReport.id,
+        status: "submitted",
+        submitted_at: updatedReport.updatedAt.toISOString(),
+      },
     };
   }
 }
